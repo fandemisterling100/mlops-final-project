@@ -15,7 +15,7 @@ push:
 # pull section allows you to provide instructions for cloning this project in remote locations
 pull:
 - prefect.deployments.steps.git_clone:
-    repository: git@github.com:mjaramillo_meli/mlops-bootcamp-project.git
+    repository: git@github.com:fandemisterling100/mlops-final-project.git
     branch: main
     access_token:
 
