@@ -15,20 +15,31 @@ push:
 # pull section allows you to provide instructions for cloning this project in remote locations
 pull:
 - prefect.deployments.steps.git_clone:
-    repository: git@github.com:fandemisterling100/mlops-final-project.git
+    repository: https://github.com/fandemisterling100/mlops-final-project.git
     branch: main
     access_token:
 
 deployments:
-- name: null
-  version: null
+- name:
+  version:
   tags: []
-  description: null
+  description:
   schedule: {}
-  flow_name: null
-  entrypoint: null
+  flow_name:
+  entrypoint:
   parameters: {}
   work_pool:
-    name: null
-    work_queue_name: null
+    name:
+    work_queue_name:
     job_variables: {}
+- name: mlops-final-project-local
+  version:
+  tags: []
+  description: The main training pipeline
+  entrypoint: train.py:main_flow_training
+  parameters: {}
+  work_pool:
+    name: mlops-project-pool
+    work_queue_name:
+    job_variables: {}
+  schedule:
