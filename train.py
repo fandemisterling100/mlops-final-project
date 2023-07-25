@@ -2,7 +2,7 @@ import pickle
 import logging
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from s3_client import download_data
+from s3_client import download_data, upload_data
 from dotenv import dotenv_values
 from settings import MODEL_PARAMETERS, OUTPUT_COLUMN, TEST_SIZE
 import os
@@ -242,6 +242,14 @@ def main_flow_training():
 
         mlflow.sklearn.log_model(model, artifact_path="models")
         print(f"Default artifacts URI: '{mlflow.get_artifact_uri()}'")
+
+        upload_data(
+            aws_key=config.get("AWS_KEY_MODELS", "test_key"),
+            aws_secret=config.get("AWS_SECRET_MODELS", "test_secret"),
+            bucket=config.get("MODELS_BUCKET", "test_bucket"),
+            file_name=config.get("FILENAME", "test_file_name"),
+            object_name=config.get("OBJECT_NAME", "test_object_name"),
+        )
 
 
 if __name__ == "__main__":
