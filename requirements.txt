@@ -20,3 +20,5 @@ pandas == 2.0.2
 pytest-cov == 2.6.0
 pytest-mock == 3.6.1
 ipykernel == 6.23.1
+gunicorn == 20.1.0
+flask ==2.3.2

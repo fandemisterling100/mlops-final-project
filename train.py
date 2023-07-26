@@ -2,11 +2,12 @@ import pickle
 import logging
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from s3_client import download_data, upload_data
+from s3_client import download_data
 from dotenv import dotenv_values
 from settings import MODEL_PARAMETERS, OUTPUT_COLUMN, TEST_SIZE
 import os
-from datetime import date
+from datetime import date, datetime
+from mlflow.tracking import MlflowClient
 
 from sklearn.feature_extraction import DictVectorizer
 from sklearn.impute import SimpleImputer
@@ -27,6 +28,7 @@ logger = logging.getLogger(__name__)
 TRACKING_SERVER_HOST = config.get(
     "TRACKING_SERVER_HOST", "test_tracking_server"
 )  # public DNS of the EC2 instance
+EXPERIMENT_NAME = "consumers-laundering-model"
 
 
 @task
@@ -145,15 +147,6 @@ def predict(model, input_value):
     return model.predict_proba(input_value)[:, 1]
 
 
-@task(name="Model serialization", log_prints=True)
-def serialize(model):
-    """Serialize current model instance into a stream of bytes."""
-    logger.info("Saving model as pickle...")
-    model_pickle = pickle.dumps(model)
-    with open("model.pkl", "wb") as file:
-        pickle.dump(model_pickle, file, protocol=pickle.HIGHEST_PROTOCOL)
-
-
 @task(name="Metrics calculation", log_prints=True)
 def calculate_metrics(
     model, training_dataset: pd.DataFrame, test_dataset: pd.DataFrame, **kwargs
@@ -204,7 +197,6 @@ def train_model(train_dataset, test_dataset):
         "Trained MoneyLaunderingModel with params: %s",
         str(MODEL_PARAMETERS.get("hyperparameters")),
     )
-    serialize(model)
 
     model_metrics = calculate_metrics(
         model, train_dataset, test_dataset, **MODEL_PARAMETERS
@@ -216,12 +208,27 @@ def train_model(train_dataset, test_dataset):
     return model, model_metrics
 
 
+@task(name="Register last trained Model", log_prints=True)
+def register_model():
+    client = MlflowClient(f"http://{TRACKING_SERVER_HOST}:5000")
+    experiment_id = client.get_experiment_by_name(EXPERIMENT_NAME).experiment_id
+    run = client.search_runs(experiment_ids=[experiment_id])
+    run = run[0].to_dictionary()
+    run_id = run.get("info").get("run_id")
+
+    now = datetime.now()
+    mlflow.register_model(
+        model_uri=f"runs:/{run_id}/models",
+        name=f'{EXPERIMENT_NAME}-{now.strftime("%Y-%m-%d %H:%M:%S")}',
+    )
+
+
 @flow(name="Main training flow", log_prints=True)
 def main_flow_training():
     """The main training pipeline"""
 
     mlflow.set_tracking_uri(f"http://{TRACKING_SERVER_HOST}:5000")
-    mlflow.set_experiment("consumers-laundering-model")
+    mlflow.set_experiment(EXPERIMENT_NAME)
     run_description = "Laundering model experiment description."
     tags = {
         "owner_team": "credits",
@@ -243,13 +250,7 @@ def main_flow_training():
         mlflow.sklearn.log_model(model, artifact_path="models")
         print(f"Default artifacts URI: '{mlflow.get_artifact_uri()}'")
 
-        upload_data(
-            aws_key=config.get("AWS_KEY_MODELS", "test_key"),
-            aws_secret=config.get("AWS_SECRET_MODELS", "test_secret"),
-            bucket=config.get("MODELS_BUCKET", "test_bucket"),
-            file_name=config.get("FILENAME", "test_file_name"),
-            object_name=config.get("OBJECT_NAME", "test_object_name"),
-        )
+        register_model()
 
 
 if __name__ == "__main__":
