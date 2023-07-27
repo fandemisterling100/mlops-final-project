@@ -6,7 +6,7 @@ from s3_client import download_data
 from dotenv import dotenv_values
 from settings import MODEL_PARAMETERS, OUTPUT_COLUMN, TEST_SIZE
 import os
-from datetime import date, datetime
+from datetime import date
 from mlflow.tracking import MlflowClient
 
 from sklearn.feature_extraction import DictVectorizer
@@ -216,10 +216,9 @@ def register_model():
     run = run[0].to_dictionary()
     run_id = run.get("info").get("run_id")
 
-    now = datetime.now()
     mlflow.register_model(
         model_uri=f"runs:/{run_id}/models",
-        name=f'{EXPERIMENT_NAME}-{now.strftime("%Y-%m-%d %H:%M:%S")}',
+        name=EXPERIMENT_NAME,
     )
 
 
