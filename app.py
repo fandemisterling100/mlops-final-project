@@ -3,7 +3,7 @@ from dotenv import dotenv_values
 import pandas as pd
 
 import mlflow
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from mlflow.tracking import MlflowClient
 
 logger = logging.getLogger(__name__)
@@ -31,8 +31,12 @@ def predict(input_value):
         input_value = pd.DataFrame(input_value)
 
     predictions = model.predict_proba(input_value)[:, 1]
+    response = {
+        "run_id": RUN_ID,
+        "predictions": predictions.tolist(),
+    }
 
-    return predictions.tolist()
+    return jsonify(response)
 
 
 app = Flask(__name__)
@@ -55,5 +59,5 @@ def hello_world():
 
 
 if __name__ == "__main__":
-    #app.run(debug=True, host="0.0.0.0", port=9696)
+    # app.run(debug=True, host="0.0.0.0", port=9696)
     app.run()
