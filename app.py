@@ -20,8 +20,17 @@ def predict(input_value):
     client = MlflowClient(tracking_uri=f"http://{TRACKING_SERVER_HOST}:5000")
     mlflow.set_tracking_uri(f"http://{TRACKING_SERVER_HOST}:5000")
 
-    RUN_ID = client.search_registered_models()[0].latest_versions[0].run_id
-    logged_model = f"s3://mlflow-artifact-remote-isa/3/{RUN_ID}/artifacts/models/"
+    mlflow_model = client.search_registered_models()[0].latest_versions[0]
+    run_id = mlflow_model.run_id
+
+    model_metadata = {
+        "name": mlflow_model.name,
+        "run_id": run_id,
+        "current_scope": mlflow_model.current_stage,
+        "status": mlflow_model.status,
+        "version": mlflow_model.version,
+    }
+    logged_model = f"s3://mlflow-artifact-remote-isa/3/{run_id}/artifacts/models/"
 
     model = mlflow.sklearn.load_model(logged_model)
 
@@ -32,7 +41,7 @@ def predict(input_value):
 
     predictions = model.predict_proba(input_value)[:, 1]
     response = {
-        "run_id": RUN_ID,
+        "model": model_metadata,
         "predictions": predictions.tolist(),
     }
 
