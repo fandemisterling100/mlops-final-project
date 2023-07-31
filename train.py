@@ -1,26 +1,27 @@
-import pickle
 import logging
-import pandas as pd
-from sklearn.model_selection import train_test_split
-from s3_client import download_data
-from dotenv import dotenv_values
-from settings import MODEL_PARAMETERS, OUTPUT_COLUMN, TEST_SIZE
 import os
+import pickle
 from datetime import date
-from mlflow.tracking import MlflowClient
 
+import mlflow
+import pandas as pd
+from dotenv import dotenv_values
+from evidently.metric_preset import ClassificationPreset, DataQualityPreset
+from evidently.report import Report
+from mlflow.tracking import MlflowClient
+from prefect import flow, task
+from prefect.artifacts import create_markdown_artifact
 from sklearn.feature_extraction import DictVectorizer
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import roc_auc_score
-from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import GridSearchCV, train_test_split
 from sklearn.pipeline import FeatureUnion, Pipeline, make_pipeline
 from sklearn.preprocessing import StandardScaler
 from xgboost.sklearn import XGBClassifier
-from transformers import FeatureExtractor, FillNA, ToDict, ToNumeric
-import mlflow
 
-from prefect import flow, task
-from prefect.artifacts import create_markdown_artifact
+from s3_client import download_data
+from settings import MODEL_PARAMETERS, OUTPUT_COLUMN, TEST_SIZE
+from transformers import FeatureExtractor, FillNA, ToDict, ToNumeric
 
 config = dotenv_values(".env")
 logger = logging.getLogger(__name__)
@@ -29,6 +30,53 @@ TRACKING_SERVER_HOST = config.get(
     "TRACKING_SERVER_HOST", "test_tracking_server"
 )  # public DNS of the EC2 instance
 EXPERIMENT_NAME = "consumers-laundering-model"
+
+
+@task
+def check_data_quality(data):
+    data_quality_report = Report(
+        metrics=[
+            DataQualityPreset(),
+        ]
+    )
+    data_quality_report.run(reference_data=data)
+    return data_quality_report
+
+
+@task
+def check_classification_performance(reference, predictions):
+    classification_performance_report = Report(
+        metrics=[
+            ClassificationPreset(),
+        ]
+    )
+    classification_performance_report.run(
+        reference_data=reference, current_data=predictions
+    )
+
+    return classification_performance_report
+
+
+@flow(name="Generate Evidently reports", log_prints=True)
+def generate_evidentyle_reports(reference, predictions):
+    print("> Check data quality: Train")
+    quality_train_eport = check_data_quality(reference)
+    print("> Check model performance: Train")
+    model_performance_train_report = check_classification_performance(
+        reference, predictions
+    )
+
+    print("> Check data quality: Train")
+    quality_report_train = check_data_quality(reference)
+    print("> Check model performance: Test")
+    model_performance_report = check_classification_performance(reference, predictions)
+
+    return (
+        quality_train_eport,
+        model_performance_train_report,
+        quality_report_train,
+        model_performance_report,
+    )
 
 
 @task

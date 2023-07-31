@@ -1,9 +1,9 @@
 import logging
-from dotenv import dotenv_values
-import pandas as pd
 
 import mlflow
-from flask import Flask, request, jsonify
+import pandas as pd
+from dotenv import dotenv_values
+from flask import Flask, jsonify, request
 from mlflow.tracking import MlflowClient
 
 logger = logging.getLogger(__name__)

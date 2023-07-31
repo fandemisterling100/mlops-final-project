@@ -3,13 +3,13 @@ This module implements a S3Client class which acts as a connector
 to retrieve files from S3 buckets using boto3 library
 """
 
-import boto3
-from retry import retry
-from botocore.exceptions import ClientError
-
-import os
 import logging
+import os
+
+import boto3
+from botocore.exceptions import ClientError
 from prefect import task
+from retry import retry
 
 logger = logging.getLogger(__name__)
 
