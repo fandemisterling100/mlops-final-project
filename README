@@ -1,0 +1,12 @@
+DEMO VIDEO: https://www.loom.com/share/a99075eb512b45258db3181dec24b55d
+AWS EC2 Instance to check MLFLOW experiments: http://ec2-18-206-253-206.compute-1.amazonaws.com:5000/#/experiments/3?searchFilter=&orderByKey=attributes.start_time&orderByAsc=false&startTime=ALL&lifecycleFilter=Active&modelVersionFilter=All%20Runs&selectedColumns=attributes.%60Source%60,attributes.%60Models%60,attributes.%60Dataset%60&compareRunCharts=
+
+AWS EC2 Instance to make predictions: 54.159.94.245/predict
+
+Dummy body to make predictions:
+
+{
+    "total_outcome_dollar_amount": [2109.19],
+    "total_income_dollar_amount": [1305.06],
+    "risk_pld": ["HIGH"]
+}
