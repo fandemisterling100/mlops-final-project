@@ -32,6 +32,7 @@ create table if not exists metrics_summary(
     current_unique_total_outcome_dollar_amount integer,
     current_unique_total_income_dollar_amount integer,
     current_unique_risk_pld integer,
+    current_roc_auc float,
     reference_number_cols integer,
     reference_number_rows integer,
     reference_number_missing_values integer,
@@ -42,7 +43,8 @@ create table if not exists metrics_summary(
     reference_unique_target integer,
     reference_unique_total_outcome_dollar_amount integer,
     reference_unique_total_income_dollar_amount integer,
-    reference_unique_risk_pld integer
+    reference_unique_risk_pld integer,
+    reference_roc_auc float
 )
 """
 num_features = MODEL_PARAMETERS.get("numeric_columns")
@@ -89,7 +91,7 @@ def check_data_quality(ref, curr):
 
 
 @task(name="Save report", log_prints=True)
-def save_data_quality_report(result, run_id):
+def save_data_quality_report(result, train_roc_auc, test_roc_auc, run_id):
     metrics = result.get("metrics")
     current_metrics = metrics[0].get("result").get("current")
     reference_metrics = metrics[0].get("result").get("reference")
@@ -164,6 +166,7 @@ def save_data_quality_report(result, run_id):
                     current_unique_total_outcome_dollar_amount,
                     current_unique_total_income_dollar_amount,
                     current_unique_risk_pld,
+                    current_roc_auc,
                     reference_number_cols,
                     reference_number_rows,
                     reference_number_missing_values,
@@ -174,9 +177,10 @@ def save_data_quality_report(result, run_id):
                     reference_unique_target,
                     reference_unique_total_outcome_dollar_amount,
                     reference_unique_total_income_dollar_amount,
-                    reference_unique_risk_pld) values (
+                    reference_unique_risk_pld,
+                    reference_roc_auc) values (
                         %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s 
                     )""",
                 (
                     datetime.datetime.now(),
@@ -192,6 +196,7 @@ def save_data_quality_report(result, run_id):
                     current_unique_total_outcome_dollar_amount,
                     current_unique_total_income_dollar_amount,
                     current_unique_risk_pld,
+                    train_roc_auc,
                     reference_number_cols,
                     reference_number_rows,
                     reference_number_missing_values,
@@ -203,17 +208,22 @@ def save_data_quality_report(result, run_id):
                     reference_unique_total_outcome_dollar_amount,
                     reference_unique_total_income_dollar_amount,
                     reference_unique_risk_pld,
+                    test_roc_auc,
                 ),
             )
 
 
 @flow(name="Generate Data Quality Report", log_prints=True)
-def generate_data_quality_report(ref, curr, run_id):
+def generate_data_quality_report(ref, curr, train_roc_auc, test_roc_auc, run_id):
     report = check_data_quality(ref, curr)
-    save_data_quality_report(report.as_dict(), run_id)
+    save_data_quality_report(report.as_dict(), train_roc_auc, test_roc_auc, run_id)
 
 
 @flow(name="Generate evidently reports", log_prints=True)
-def generate_evidently_reports(train_dataset, test_dataset, run_id):
+def generate_evidently_reports(
+    train_dataset, test_dataset, train_roc_auc, test_roc_auc, run_id
+):
     prep_db()
-    generate_data_quality_report(train_dataset, test_dataset, run_id)
+    generate_data_quality_report(
+        train_dataset, test_dataset, train_roc_auc, test_roc_auc, run_id
+    )

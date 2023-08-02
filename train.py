@@ -292,16 +292,20 @@ def main_flow_training():
         run_id = run.info.run_id
         train_dataset, test_dataset = generate_data()
         model, model_metrics = train_model(train_dataset, test_dataset)
+        train_roc_auc = model_metrics.get("roc_auc_score_training")
+        test_roc_auc = model_metrics.get("roc_auc_score_test")
 
         # Generate reports of quality data and model performance
         generate_evidently_reports(
             train_dataset,
             test_dataset,
+            train_roc_auc,
+            test_roc_auc,
             run_id,
         )
 
-        mlflow.log_metric("train_roc_auc", model_metrics.get("roc_auc_score_training"))
-        mlflow.log_metric("test_roc_auc", model_metrics.get("roc_auc_score_test"))
+        mlflow.log_metric("train_roc_auc", train_roc_auc)
+        mlflow.log_metric("test_roc_auc", test_roc_auc)
 
         mlflow.sklearn.log_model(model, artifact_path="models")
         print(f"Default artifacts URI: '{mlflow.get_artifact_uri()}'")
