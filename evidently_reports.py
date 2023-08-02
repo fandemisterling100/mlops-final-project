@@ -18,8 +18,7 @@ from settings import MODEL_PARAMETERS, OUTPUT_COLUMN, TEST_SIZE
 config = dotenv_values(".env")
 
 create_table_statement = """
-drop table if exists metrics_summary;
-create table metrics_summary(
+create table if not exists metrics_summary(
 	timestamp timestamp,
     run_id varchar(256),
 	current_number_cols integer,
@@ -46,9 +45,11 @@ create table metrics_summary(
     reference_unique_risk_pld integer
 )
 """
+num_features = MODEL_PARAMETERS.get("numeric_columns")
+cat_features = MODEL_PARAMETERS.get("categorical_columns")
 
 
-# @task
+@task(name="Prepare DB to save report", log_prints=True)
 def prep_db():
     with psycopg.connect(
         "host=127.0.0.1 port=5432 user=postgres password=example", autocommit=True
@@ -62,11 +63,8 @@ def prep_db():
             conn.execute(create_table_statement)
 
 
-# @task
+@task(name="Run report", log_prints=True)
 def check_data_quality(ref, curr):
-    num_features = MODEL_PARAMETERS.get("numeric_columns")
-    cat_features = MODEL_PARAMETERS.get("categorical_columns")
-
     all_columns = [OUTPUT_COLUMN] + num_features + cat_features
 
     ref = ref[all_columns].replace("", None)
@@ -90,6 +88,7 @@ def check_data_quality(ref, curr):
     return data_quality_report
 
 
+@task(name="Save report", log_prints=True)
 def save_data_quality_report(result, run_id):
     metrics = result.get("metrics")
     current_metrics = metrics[0].get("result").get("current")
@@ -208,49 +207,13 @@ def save_data_quality_report(result, run_id):
             )
 
 
+@flow(name="Generate Data Quality Report", log_prints=True)
 def generate_data_quality_report(ref, curr, run_id):
     report = check_data_quality(ref, curr)
     save_data_quality_report(report.as_dict(), run_id)
 
 
-# @flow(name="test evidently reports", log_prints=True)
-def generate_reports():
-    output_file = config.get("PATH_TO", "test_path_to")
-
-    download_data(
-        aws_key=config.get("AWS_KEY", "test_key"),
-        aws_secret=config.get("AWS_SECRET", "test_secret"),
-        bucket=config.get("BUCKET", "test_bucket"),
-        prefix=config.get("PATH_FROM", "test_path_from"),
-        output_name=output_file,
-    )
-
-    with open(output_file, "rb") as data_file:
-        data = pickle.load(data_file)
-
-    dataframe = pd.DataFrame(data)
-
-    # Format output column
-    target_column = MODEL_PARAMETERS.get("target_column")
-    condition = MODEL_PARAMETERS.get("condition_value")
-
-    dataframe[OUTPUT_COLUMN] = (dataframe[target_column] != condition).astype(int)
-
-    train = []
-    test = []
-
-    try:
-        # Separate dataset into train and test data
-        train, test = train_test_split(dataframe, test_size=TEST_SIZE)
-    except Exception as error:
-        print(error)
-
-    if os.path.exists(output_file):
-        os.remove(output_file)
-
-    generate_data_quality_report(train, test, "fdsfsdf233434")
-
-
-if __name__ == "__main__":
+@flow(name="Generate evidently reports", log_prints=True)
+def generate_evidently_reports(train_dataset, test_dataset, run_id):
     prep_db()
-    generate_reports()
+    generate_data_quality_report(train_dataset, test_dataset, run_id)

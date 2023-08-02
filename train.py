@@ -18,6 +18,7 @@ from sklearn.model_selection import GridSearchCV, train_test_split
 from sklearn.pipeline import FeatureUnion, Pipeline, make_pipeline
 from sklearn.preprocessing import StandardScaler
 from xgboost.sklearn import XGBClassifier
+from evidently_reports import generate_evidently_reports
 
 from s3_client import download_data
 from settings import MODEL_PARAMETERS, OUTPUT_COLUMN, TEST_SIZE
@@ -285,11 +286,19 @@ def main_flow_training():
         "features": "path/to/features",
     }
 
-    with mlflow.start_run(description=run_description, tags=tags):
+    with mlflow.start_run(description=run_description, tags=tags) as run:
         mlflow.log_params(MODEL_PARAMETERS)
 
+        run_id = run.info.run_id
         train_dataset, test_dataset = generate_data()
         model, model_metrics = train_model(train_dataset, test_dataset)
+
+        # Generate reports of quality data and model performance
+        generate_evidently_reports(
+            train_dataset,
+            test_dataset,
+            run_id,
+        )
 
         mlflow.log_metric("train_roc_auc", model_metrics.get("roc_auc_score_training"))
         mlflow.log_metric("test_roc_auc", model_metrics.get("roc_auc_score_test"))
