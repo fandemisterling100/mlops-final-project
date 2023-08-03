@@ -271,6 +271,8 @@ def register_model():
     except Exception:
         pass
 
+    return version
+
 
 @flow(name="Main training flow", log_prints=True)
 def main_flow_training():
@@ -296,6 +298,14 @@ def main_flow_training():
         train_roc_auc = model_metrics.get("roc_auc_score_training")
         test_roc_auc = model_metrics.get("roc_auc_score_test")
 
+        mlflow.log_metric("train_roc_auc", train_roc_auc)
+        mlflow.log_metric("test_roc_auc", test_roc_auc)
+
+        mlflow.sklearn.log_model(model, artifact_path="models")
+        print(f"Default artifacts URI: '{mlflow.get_artifact_uri()}'")
+
+        model_version = register_model()
+
         # Generate reports of quality data and model performance
         generate_evidently_reports(
             train_dataset,
@@ -303,15 +313,8 @@ def main_flow_training():
             train_roc_auc,
             test_roc_auc,
             run_id,
+            model_version,
         )
-
-        mlflow.log_metric("train_roc_auc", train_roc_auc)
-        mlflow.log_metric("test_roc_auc", test_roc_auc)
-
-        mlflow.sklearn.log_model(model, artifact_path="models")
-        print(f"Default artifacts URI: '{mlflow.get_artifact_uri()}'")
-
-        register_model()
 
 
 if __name__ == "__main__":

@@ -41,7 +41,8 @@ create table if not exists metrics_summary(
     reference_unique_total_outcome_dollar_amount integer,
     reference_unique_total_income_dollar_amount integer,
     reference_unique_risk_pld integer,
-    reference_roc_auc float
+    reference_roc_auc float,
+    version varchar(256)
 )
 """
 num_features = MODEL_PARAMETERS.get("numeric_columns")
@@ -106,7 +107,7 @@ def check_data_quality(ref, curr):
 
 
 @task(name="Save report", log_prints=True)
-def save_data_quality_report(result, train_roc_auc, test_roc_auc, run_id):
+def save_data_quality_report(result, train_roc_auc, test_roc_auc, run_id, version):
     """
     The `save_data_quality_report` function saves data quality
     metrics and other information to a PostgreSQL database.
@@ -165,9 +166,10 @@ def save_data_quality_report(result, train_roc_auc, test_roc_auc, run_id):
                     reference_unique_total_outcome_dollar_amount,
                     reference_unique_total_income_dollar_amount,
                     reference_unique_risk_pld,
-                    reference_roc_auc) values (
+                    reference_roc_auc,
+                    version) values (
                         %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s , %s
                     )""",
                 (
                     datetime.datetime.now(),
@@ -212,23 +214,28 @@ def save_data_quality_report(result, train_roc_auc, test_roc_auc, run_id):
                     ),
                     reference_metrics.get("number_uniques_by_columns").get("risk_pld"),
                     test_roc_auc,
+                    str(version),
                 ),
             )
 
 
 @flow(name="Generate Data Quality Report", log_prints=True)
-def generate_data_quality_report(ref, curr, train_roc_auc, test_roc_auc, run_id):
+def generate_data_quality_report(
+    ref, curr, train_roc_auc, test_roc_auc, run_id, version
+):
     """
     The function generates a data quality report and saves
     it along with other metrics and a run ID.
     """
     report = check_data_quality(ref, curr)
-    save_data_quality_report(report.as_dict(), train_roc_auc, test_roc_auc, run_id)
+    save_data_quality_report(
+        report.as_dict(), train_roc_auc, test_roc_auc, run_id, version
+    )
 
 
 @flow(name="Generate evidently reports", log_prints=True)
 def generate_evidently_reports(
-    train_dataset, test_dataset, train_roc_auc, test_roc_auc, run_id
+    train_dataset, test_dataset, train_roc_auc, test_roc_auc, run_id, version
 ):
     """
     The function `generate_evidently_reports` generates data
@@ -238,5 +245,5 @@ def generate_evidently_reports(
     """
     prep_db()
     generate_data_quality_report(
-        train_dataset, test_dataset, train_roc_auc, test_roc_auc, run_id
+        train_dataset, test_dataset, train_roc_auc, test_roc_auc, run_id, version
     )

@@ -4,4 +4,4 @@
 # can either give multiple identifier separated by comma (,) or put this option
 # multiple time (only on the command line, not in the configuration file where
 # it should appear only once).
-disable=logging-fstring-interpolation,broad-except,not-context-manager,duplicate-code,no-member,unused-wildcard-import,wildcard-import
+disable=logging-fstring-interpolation,broad-except,not-context-manager,duplicate-code,no-member,unused-wildcard-import,wildcard-import,too-many-arguments
