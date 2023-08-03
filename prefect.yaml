@@ -15,7 +15,7 @@ push:
 # pull section allows you to provide instructions for cloning this project in remote locations
 pull:
 - prefect.deployments.steps.set_working_directory:
-    directory: /home/ubuntu/mlops-project/mlops-final-project
+    directory: /Users/mjaramillo/Desktop/final_project/mlops-final-project/mlops_final_project
 
 # the deployments section allows you to provide configuration for deploying flows
 deployments:
