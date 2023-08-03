@@ -1,3 +1,5 @@
+"""Module to test prediction endpoint"""
+
 import requests
 
 data = {
@@ -6,6 +8,6 @@ data = {
     "risk_pld": ["HIGH"],
 }
 
-url = "http://localhost:9696/predict"
-response = requests.post(url, json=data)
+URL = "http://localhost:9696/predict"
+response = requests.post(URL, json=data, timeout=10)
 print(response.json())

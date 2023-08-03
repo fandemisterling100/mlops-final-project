@@ -4,10 +4,8 @@ to retrieve files from S3 buckets using boto3 library
 """
 
 import logging
-import os
 
 import boto3
-from botocore.exceptions import ClientError
 from prefect import task
 from retry import retry
 
@@ -19,6 +17,11 @@ logger = logging.getLogger(__name__)
 def download_data(
     aws_key: str, aws_secret: str, bucket: str, prefix: str, output_name: str
 ) -> None:
+    """
+    The `download_data` function downloads a file from an AWS S3
+    bucket using the provided AWS access key, secret key,
+    bucket name, prefix, and output file name.
+    """
     client = boto3.client(
         "s3", aws_access_key_id=aws_key, aws_secret_access_key=aws_secret
     )

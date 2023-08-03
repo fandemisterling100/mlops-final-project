@@ -1,3 +1,5 @@
+"""Module to train a ML model to predict money laundering"""
+
 import logging
 import os
 import pickle
@@ -6,8 +8,6 @@ from datetime import date
 import mlflow
 import pandas as pd
 from dotenv import dotenv_values
-from evidently.metric_preset import ClassificationPreset, DataQualityPreset
-from evidently.report import Report
 from mlflow.tracking import MlflowClient
 from prefect import flow, task
 from prefect.artifacts import create_markdown_artifact
@@ -18,10 +18,10 @@ from sklearn.model_selection import GridSearchCV, train_test_split
 from sklearn.pipeline import FeatureUnion, Pipeline, make_pipeline
 from sklearn.preprocessing import StandardScaler
 from xgboost.sklearn import XGBClassifier
-from evidently_reports import generate_evidently_reports
 
+from evidently_reports import generate_evidently_reports
 from s3_client import download_data
-from settings import MODEL_PARAMETERS, OUTPUT_COLUMN, TEST_SIZE
+from settings import *
 from transformers import FeatureExtractor, FillNA, ToDict, ToNumeric
 
 config = dotenv_values(".env")
@@ -30,54 +30,6 @@ logger = logging.getLogger(__name__)
 TRACKING_SERVER_HOST = config.get(
     "TRACKING_SERVER_HOST", "test_tracking_server"
 )  # public DNS of the EC2 instance
-EXPERIMENT_NAME = "consumers-laundering-model"
-
-
-@task
-def check_data_quality(data):
-    data_quality_report = Report(
-        metrics=[
-            DataQualityPreset(),
-        ]
-    )
-    data_quality_report.run(reference_data=data)
-    return data_quality_report
-
-
-@task
-def check_classification_performance(reference, predictions):
-    classification_performance_report = Report(
-        metrics=[
-            ClassificationPreset(),
-        ]
-    )
-    classification_performance_report.run(
-        reference_data=reference, current_data=predictions
-    )
-
-    return classification_performance_report
-
-
-@flow(name="Generate Evidently reports", log_prints=True)
-def generate_evidentyle_reports(reference, predictions):
-    print("> Check data quality: Train")
-    quality_train_eport = check_data_quality(reference)
-    print("> Check model performance: Train")
-    model_performance_train_report = check_classification_performance(
-        reference, predictions
-    )
-
-    print("> Check data quality: Train")
-    quality_report_train = check_data_quality(reference)
-    print("> Check model performance: Test")
-    model_performance_report = check_classification_performance(reference, predictions)
-
-    return (
-        quality_train_eport,
-        model_performance_train_report,
-        quality_report_train,
-        model_performance_report,
-    )
 
 
 @task
@@ -200,10 +152,10 @@ def predict(model, input_value):
 def calculate_metrics(
     model, training_dataset: pd.DataFrame, test_dataset: pd.DataFrame, **kwargs
 ) -> dict:
+    """Calculate roc auc score on training and test datsets"""
     numeric_columns = kwargs.get("numeric_columns")
     categorical_columns = kwargs.get("categorical_columns")
 
-    """Calculate roc auc score on training and test datsets"""
     train_predictions = predict(
         model, training_dataset[numeric_columns + categorical_columns]
     )
@@ -223,7 +175,7 @@ def calculate_metrics(
 
     ## Summary
 
-    Laundering money Prediction 
+    Laundering money Prediction
 
     ## ROC AUC XGBClassifier Model
 
@@ -241,6 +193,11 @@ def calculate_metrics(
 
 @flow(name="Train Laundering Money Model", log_prints=True)
 def train_model(train_dataset, test_dataset):
+    """
+    The function `train_model` trains a MoneyLaunderingModel
+    using a train dataset and evaluates its
+    performance using a test dataset.
+    """
     model = create_model(train_dataset, **MODEL_PARAMETERS)
     logger.info(
         "Trained MoneyLaunderingModel with params: %s",
@@ -257,18 +214,62 @@ def train_model(train_dataset, test_dataset):
     return model, model_metrics
 
 
+def get_last_production_model():
+    """
+    The function `get_last_production_model` retrieves the
+    version number of the last model deployed in
+    the production stage using MLflow.
+    :return: the version number of the last
+    production model in the specified MLflow experiment.
+    """
+    client = MlflowClient(tracking_uri=f"http://{TRACKING_SERVER_HOST}:5000")
+    mlflow.set_tracking_uri(f"http://{TRACKING_SERVER_HOST}:5000")
+    stage = "Production"
+    mlflow_models = client.search_model_versions(
+        filter_string=f"name = '{EXPERIMENT_NAME}'", order_by=["version_number DESC"]
+    )
+    mlflow_model = mlflow_models[0]
+
+    for model in mlflow_models:
+        if model.current_stage == stage:
+            mlflow_model = model
+
+    return mlflow_model.version
+
+
 @task(name="Register last trained Model", log_prints=True)
 def register_model():
+    """
+    The function `register_model` registers a model in
+    MLflow using the specified experiment name and
+    run ID.
+    """
     client = MlflowClient(f"http://{TRACKING_SERVER_HOST}:5000")
     experiment_id = client.get_experiment_by_name(EXPERIMENT_NAME).experiment_id
     run = client.search_runs(experiment_ids=[experiment_id])
     run = run[0].to_dictionary()
     run_id = run.get("info").get("run_id")
 
-    mlflow.register_model(
+    result = mlflow.register_model(
         model_uri=f"runs:/{run_id}/models",
         name=EXPERIMENT_NAME,
     )
+
+    old_production_version = get_last_production_model()
+
+    # Promote last trained model to production stage
+    version = result.version
+    client.transition_model_version_stage(
+        name=EXPERIMENT_NAME, version=version, stage="Production"
+    )
+
+    # Set last production model to None stage
+    try:
+        client.transition_model_version_stage(
+            name=EXPERIMENT_NAME, version=old_production_version, stage="None"
+        )
+    except Exception:
+        pass
 
 
 @flow(name="Main training flow", log_prints=True)

@@ -1,15 +1,15 @@
-import logging
+"""Module to manually test evidently report creation"""
+
+import datetime
 import os
 import pickle
-import datetime
-import psycopg
 
 import pandas as pd
+import psycopg
 from dotenv import dotenv_values
 from evidently import ColumnMapping
-from evidently.metric_preset import ClassificationPreset, DataQualityPreset
+from evidently.metric_preset import DataQualityPreset
 from evidently.report import Report
-from prefect import flow, task
 from sklearn.model_selection import train_test_split
 
 from s3_client import download_data
@@ -17,7 +17,7 @@ from settings import MODEL_PARAMETERS, OUTPUT_COLUMN, TEST_SIZE
 
 config = dotenv_values(".env")
 
-create_table_statement = """
+CREATE_TABLE_STATEMENT = """
 drop table if exists metrics_summary;
 create table metrics_summary(
 	timestamp timestamp,
@@ -50,6 +50,11 @@ create table metrics_summary(
 
 # @task
 def prep_db():
+    """
+    The function `prep_db` checks if a database named "test"
+    exists, and if not, creates it, and then connects to the
+    "test" database and executes a create table statement.
+    """
     with psycopg.connect(
         "host=127.0.0.1 port=5432 user=postgres password=example", autocommit=True
     ) as conn:
@@ -59,11 +64,24 @@ def prep_db():
         with psycopg.connect(
             "host=127.0.0.1 port=5432 dbname=test user=postgres password=example"
         ) as conn:
-            conn.execute(create_table_statement)
+            conn.execute(CREATE_TABLE_STATEMENT)
 
 
 # @task
 def check_data_quality(ref, curr):
+    """
+    The function `check_data_quality` takes in two dataframes,
+    `ref` and `curr`, and performs data quality checks on
+    specific columns using a predefined set of metrics.
+
+    :param ref: The `ref` parameter is a reference dataset
+    that contains the expected values for the
+    features used in the model
+    :param curr: The variable `curr` represents the current
+    dataset that you want to check the data
+    quality for
+    :return: a data quality report.
+    """
     num_features = MODEL_PARAMETERS.get("numeric_columns")
     cat_features = MODEL_PARAMETERS.get("categorical_columns")
 
@@ -91,59 +109,22 @@ def check_data_quality(ref, curr):
 
 
 def save_data_quality_report(result, run_id):
+    """
+    The `save_data_quality_report` function saves data quality
+    metrics to a PostgreSQL database.
+
+    :param result: The `result` parameter is a dictionary that
+    contains the metrics for the data quality
+    report. It has the following structure:
+    :param run_id: The `run_id` parameter is an identifier
+    for the data quality report run. It could be
+    a unique identifier such as a UUID or an integer
+    value that helps identify the specific run of the
+    data quality report
+    """
     metrics = result.get("metrics")
     current_metrics = metrics[0].get("result").get("current")
     reference_metrics = metrics[0].get("result").get("reference")
-
-    current_number_cols = current_metrics.get("number_of_columns")
-    current_number_rows = current_metrics.get("number_of_rows")
-    current_number_missing_values = current_metrics.get("number_of_missing_values")
-    current_number_duplicated_rows = current_metrics.get("number_of_duplicated_rows")
-    current_nan_total_outcome_dollar_amount = current_metrics.get(
-        "nans_by_columns"
-    ).get("total_outcome_dollar_amount")
-    current_nan_total_income_dollar_amount = current_metrics.get("nans_by_columns").get(
-        "total_income_dollar_amount"
-    )
-    current_nan_risk_pld = current_metrics.get("nans_by_columns").get("risk_pld")
-    current_unique_target = current_metrics.get("number_uniques_by_columns").get(
-        "target"
-    )
-    current_unique_total_outcome_dollar_amount = current_metrics.get(
-        "number_uniques_by_columns"
-    ).get("total_outcome_dollar_amount")
-    current_unique_total_income_dollar_amount = current_metrics.get(
-        "number_uniques_by_columns"
-    ).get("total_income_dollar_amount")
-    current_unique_risk_pld = current_metrics.get("number_uniques_by_columns").get(
-        "risk_pld"
-    )
-
-    reference_number_cols = reference_metrics.get("number_of_columns")
-    reference_number_rows = reference_metrics.get("number_of_rows")
-    reference_number_missing_values = reference_metrics.get("number_of_missing_values")
-    reference_number_duplicated_rows = reference_metrics.get(
-        "number_of_duplicated_rows"
-    )
-    reference_nan_total_outcome_dollar_amount = reference_metrics.get(
-        "nans_by_columns"
-    ).get("total_outcome_dollar_amount")
-    reference_nan_total_income_dollar_amount = reference_metrics.get(
-        "nans_by_columns"
-    ).get("total_income_dollar_amount")
-    reference_nan_risk_pld = reference_metrics.get("nans_by_columns").get("risk_pld")
-    reference_unique_target = reference_metrics.get("number_uniques_by_columns").get(
-        "target"
-    )
-    reference_unique_total_outcome_dollar_amount = reference_metrics.get(
-        "number_uniques_by_columns"
-    ).get("total_outcome_dollar_amount")
-    reference_unique_total_income_dollar_amount = reference_metrics.get(
-        "number_uniques_by_columns"
-    ).get("total_income_dollar_amount")
-    reference_unique_risk_pld = reference_metrics.get("number_uniques_by_columns").get(
-        "risk_pld"
-    )
 
     with psycopg.connect(
         "host=127.0.0.1 port=5432 dbname=test user=postgres password=example",
@@ -182,39 +163,66 @@ def save_data_quality_report(result, run_id):
                 (
                     datetime.datetime.now(),
                     run_id,
-                    current_number_cols,
-                    current_number_rows,
-                    current_number_missing_values,
-                    current_number_duplicated_rows,
-                    current_nan_total_outcome_dollar_amount,
-                    current_nan_total_income_dollar_amount,
-                    current_nan_risk_pld,
-                    current_unique_target,
-                    current_unique_total_outcome_dollar_amount,
-                    current_unique_total_income_dollar_amount,
-                    current_unique_risk_pld,
-                    reference_number_cols,
-                    reference_number_rows,
-                    reference_number_missing_values,
-                    reference_number_duplicated_rows,
-                    reference_nan_total_outcome_dollar_amount,
-                    reference_nan_total_income_dollar_amount,
-                    reference_nan_risk_pld,
-                    reference_unique_target,
-                    reference_unique_total_outcome_dollar_amount,
-                    reference_unique_total_income_dollar_amount,
-                    reference_unique_risk_pld,
+                    current_metrics.get("number_of_columns"),
+                    current_metrics.get("number_of_rows"),
+                    current_metrics.get("number_of_missing_values"),
+                    current_metrics.get("number_of_duplicated_rows"),
+                    current_metrics.get("nans_by_columns").get(
+                        "total_outcome_dollar_amount"
+                    ),
+                    current_metrics.get("nans_by_columns").get(
+                        "total_income_dollar_amount"
+                    ),
+                    current_metrics.get("nans_by_columns").get("risk_pld"),
+                    current_metrics.get("number_uniques_by_columns").get("target"),
+                    current_metrics.get("number_uniques_by_columns").get(
+                        "total_outcome_dollar_amount"
+                    ),
+                    current_metrics.get("number_uniques_by_columns").get(
+                        "total_income_dollar_amount"
+                    ),
+                    current_metrics.get("number_uniques_by_columns").get("risk_pld"),
+                    reference_metrics.get("number_of_columns"),
+                    reference_metrics.get("number_of_rows"),
+                    reference_metrics.get("number_of_missing_values"),
+                    reference_metrics.get("number_of_duplicated_rows"),
+                    reference_metrics.get("nans_by_columns").get(
+                        "total_outcome_dollar_amount"
+                    ),
+                    reference_metrics.get("nans_by_columns").get(
+                        "total_income_dollar_amount"
+                    ),
+                    reference_metrics.get("nans_by_columns").get("risk_pld"),
+                    reference_metrics.get("number_uniques_by_columns").get("target"),
+                    reference_metrics.get("number_uniques_by_columns").get(
+                        "total_outcome_dollar_amount"
+                    ),
+                    reference_metrics.get("number_uniques_by_columns").get(
+                        "total_income_dollar_amount"
+                    ),
+                    reference_metrics.get("number_uniques_by_columns").get("risk_pld"),
                 ),
             )
 
 
 def generate_data_quality_report(ref, curr, run_id):
+    """
+    The function `generate_data_quality_report` generates a
+    data quality report by checking the data
+    quality between two datasets and saves the
+    report using a given run ID.
+    """
     report = check_data_quality(ref, curr)
     save_data_quality_report(report.as_dict(), run_id)
 
 
 # @flow(name="test evidently reports", log_prints=True)
 def generate_reports():
+    """
+    The function `generate_reports` downloads data,
+    processes it, separates it into train and test
+    datasets, and generates a data quality report.
+    """
     output_file = config.get("PATH_TO", "test_path_to")
 
     download_data(

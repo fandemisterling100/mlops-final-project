@@ -1,3 +1,5 @@
+"""Flask app to serve ML model"""
+
 import logging
 
 import mlflow
@@ -6,21 +8,44 @@ from dotenv import dotenv_values
 from flask import Flask, jsonify, request
 from mlflow.tracking import MlflowClient
 
+from settings import EXPERIMENT_NAME
+
 logger = logging.getLogger(__name__)
 config = dotenv_values(".env")
 
+TRACKING_SERVER_HOST = config.get(
+    "TRACKING_SERVER_HOST", "test_tracking_server"
+)  # public DNS of the EC2 instance
+
 
 def predict(input_value):
-    """Obtain the model's inference from the given input."""
+    """
+    The `predict` function loads a trained ML model, makes predictions on
+    the given input, and returns the predictions along with model metadata.
+
+    :param input_value: The `input_value` parameter is the input data that you
+    want to make predictions on. It can be either a dictionary or a pandas
+    DataFrame. If it is a dictionary, it will be converted
+    to a DataFrame before making predictions. The model will
+    then use this input data to generate
+    predictions using the `
+    :return: a JSON response containing the model metadata and the predictions.
+    """
+
     logger.info(f"CONFIGS: {config}")
-    TRACKING_SERVER_HOST = config.get(
-        "TRACKING_SERVER_HOST", "test_tracking_server"
-    )  # public DNS of the EC2 instance
 
     client = MlflowClient(tracking_uri=f"http://{TRACKING_SERVER_HOST}:5000")
     mlflow.set_tracking_uri(f"http://{TRACKING_SERVER_HOST}:5000")
+    stage = "Production"
+    mlflow_models = client.search_model_versions(
+        filter_string=f"name = '{EXPERIMENT_NAME}'", order_by=["version_number DESC"]
+    )
+    mlflow_model = mlflow_models[0]
 
-    mlflow_model = client.search_registered_models()[0].latest_versions[0]
+    for model in mlflow_models:
+        if model.current_stage == stage:
+            mlflow_model = model
+
     run_id = mlflow_model.run_id
 
     model_metadata = {
@@ -53,18 +78,26 @@ app = Flask(__name__)
 
 @app.route("/predict", methods=["POST"])
 def predict_endpoint():
-    logger.info(f"Route predict")
+    """
+    The function `predict_endpoint` takes in a JSON object of features,
+    logs the features, and returns the prediction made using the
+    `predict` function.
+    :return: the prediction made by the `predict` function.
+    """
     features = request.get_json()
-    logger.info(f"FEATURES: {features}")
+    logger.info(f"Features: {features}")
     pred = predict(features)
     return pred
 
 
 @app.route("/")
 def hello_world():
-    logger.info("Route hello world")
-    logger.info(f"CONFIGS: {config}")
-    return "Holi Dani! Te envío un abrazo digital"
+    """
+    The function `hello_world` returns the string
+    "Hello world!" when the root URL is accessed.
+    :return: The string "Hello world!" is being returned.
+    """
+    return "Hello world!"
 
 
 if __name__ == "__main__":
