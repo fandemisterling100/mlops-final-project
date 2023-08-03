@@ -15,7 +15,7 @@ push:
 # pull section allows you to provide instructions for cloning this project in remote locations
 pull:
 - prefect.deployments.steps.set_working_directory:
-    directory: /Users/mjaramillo/Desktop/final_project/mlops-final-project/mlops_final_project
+    directory: /home/ubuntu/mlops-project/mlops-final-project
 
 # the deployments section allows you to provide configuration for deploying flows
 deployments:
@@ -39,6 +39,17 @@ deployments:
   parameters: {}
   work_pool:
     name: mlops-project-pool
+    work_queue_name:
+    job_variables: {}
+  schedule:
+- name: mlops-final-project-aws
+  version:
+  tags: []
+  description: The main training pipeline
+  entrypoint: train.py:main_flow_training
+  parameters: {}
+  work_pool:
+    name: aws-pool
     work_queue_name:
     job_variables: {}
   schedule:
