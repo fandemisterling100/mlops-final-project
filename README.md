@@ -3,7 +3,7 @@ This model tries to automate the manual decision process of a risk analyst to id
 
 Below I present a demo explaining the architecture of the solution and showing how it works.
 
-https://www.loom.com/share/a99075eb512b45258db3181dec24b55d
+https://www.loom.com/share/c3227d095f6a4b43a32da0aa8aadf350?sid=1bada208-0677-4634-b5d1-4ebbca310a0d
 
 ## Architecture
 ![](https://i.ibb.co/m53pk9T/Model-store-and-model-registry.png)
@@ -36,6 +36,9 @@ https://www.loom.com/share/a99075eb512b45258db3181dec24b55d
 [![Grafana Dashboard](https://i.ibb.co/5GxCv18/Captura-de-pantalla-2023-08-06-a-la-s-6-49-08-a-m.png "Grafana Dashboard")](https://i.ibb.co/5GxCv18/Captura-de-pantalla-2023-08-06-a-la-s-6-49-08-a-m.png "Grafana Dashboard")
 
 - [x] A *Custom Alert* was set on *Grafana* to notify about ROC AUC values on test dataset below 0.89.
+
+[![Custom Alert on Grafana](https://i.ibb.co/wRRPFn4/Captura-de-pantalla-2023-08-08-a-la-s-9-39-59-p-m.png "Custom Alert on Grafana")](https://i.ibb.co/wRRPFn4/Captura-de-pantalla-2023-08-08-a-la-s-9-39-59-p-m.png "Custom Alert on Grafana")
+
 - [x] *Makefile* runs black and isort checks before starting a new training of the model through the run.sh file.
 - [x] run.sh file sets the TRACKING_SERVER_HOST environment variable and runs the train.py file to get a new trained version of the model.
 - [x] Deployments and training pipeline are handled using *Prefect Cloud*. It means you can follow all the steps of the training on the flow runs screen and create a new deployment from the front of the Prefect web app. Prefect cloud was configured on the EC2 instance, however, due to timeout reasons I will not use it on the demo to trigger deployments, but locally.
